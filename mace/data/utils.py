@@ -211,16 +211,22 @@ def load_from_xyz(
         atoms_without_iso_atoms = []
 
         for idx, atoms in enumerate(atoms_list):
-            if len(atoms) == 1 and atoms.info["config_type"] == "IsolatedAtom":
-                if energy_key in atoms.info.keys():
-                    atomic_energies_dict[atoms.get_atomic_numbers()[0]] = atoms.info[
-                        energy_key
-                    ]
-                else:
-                    logging.warning(
-                        f"Configuration '{idx}' is marked as 'IsolatedAtom' "
-                        "but does not contain an energy."
-                    )
+            if len(atoms) == 1:
+                try:
+                    if atoms.info["config_type"] == "IsolatedAtom":
+                        isolated_atom_config = True
+                except Exception:  # pylint: disable=W0703
+                    isolated_atom_config = False
+                if isolated_atom_config:
+                    if energy_key in atoms.info.keys():
+                        atomic_energies_dict[
+                            atoms.get_atomic_numbers()[0]
+                        ] = atoms.info[energy_key]
+                    else:
+                        logging.warning(
+                            f"Configuration '{idx}' is marked as 'IsolatedAtom' "
+                            "but does not contain an energy."
+                        )
             else:
                 atoms_without_iso_atoms.append(atoms)
 
@@ -319,7 +325,7 @@ def save_AtomicData_to_HDF5(data, i, h5_file) -> None:
 
 
 def save_configurations_as_HDF5(configurations: Configurations, i, h5_file) -> None:
-    grp = h5_file.create_group("config_batch_0")
+    grp = h5_file.create_group(f"config_batch_{i}")
     for i, config in enumerate(configurations):
         subgroup_name = f"config_{i}"
         subgroup = grp.create_group(subgroup_name)

@@ -5,10 +5,10 @@
 ###########################################################################################
 
 import ast
+import json
 import logging
 from pathlib import Path
 from typing import Optional
-import json
 import os
 
 import numpy as np
@@ -25,6 +25,7 @@ import mace
 from mace import data, modules, tools
 from mace.tools import torch_geometric
 from mace.tools.scripts_utils import (
+    LRScheduler,
     create_error_table,
     get_dataset_from_xyz,
     get_atomic_energies,
@@ -41,14 +42,12 @@ def main() -> None:
     if args.distributed:
         try:
             distr_env = DistributedEnvironment()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0703
             logging.info(f'Error specifying environment for distributed training: {e}')
             return
         world_size = distr_env.world_size
         local_rank = distr_env.local_rank
         rank = distr_env.rank
-        if rank == 0:
-            print(distr_env)
         torch.distributed.init_process_group(backend='nccl')
     else:
         rank = int(0)
@@ -109,8 +108,12 @@ def main() -> None:
             f"Total number of configurations: train={len(collections.train)}, valid={len(collections.valid)}, "
             f"tests=[{', '.join([name + ': ' + str(len(test_configs)) for name, test_configs in collections.tests])}]"
         )
-    else:
+    elif args.train_file.endswith(".h5"):
         atomic_energies_dict = None
+    else:
+        raise RuntimeError(
+            f"train_file must be either .xyz or .h5, got {args.train_file}"
+        )
     
     # Atomic number table
     # yapf: disable
@@ -237,6 +240,7 @@ def main() -> None:
         args.dipole_weight,
         dipole_only,
         compute_dipole,
+        args.huber_delta,
     )
     logging.info(loss_fn)
 
@@ -272,16 +276,17 @@ def main() -> None:
     logging.info("Building model")
     if args.num_channels is not None and args.max_L is not None:
         assert args.num_channels > 0, "num_channels must be positive integer"
-        assert (
-            args.max_L >= 0 and args.max_L < 4
-        ), "max_L must be between 0 and 3, if you want to use larger specify it via the hidden_irrpes keyword"
-        args.hidden_irreps = f"{args.num_channels:d}x0e"
-        if args.max_L > 0:
-            args.hidden_irreps += f" + {args.num_channels:d}x1o"
-        if args.max_L > 1:
-            args.hidden_irreps += f" + {args.num_channels:d}x2e"
-        if args.max_L > 2:
-            args.hidden_irreps += f" + {args.num_channels:d}x3o"
+        assert args.max_L >= 0, "max_L must be non-negative integer"
+        args.hidden_irreps = o3.Irreps(
+            (args.num_channels * o3.Irreps.spherical_harmonics(args.max_L))
+            .sort()
+            .irreps.simplify()
+        )
+
+    assert (
+        len({irrep.mul for irrep in o3.Irreps(args.hidden_irreps)}) == 1
+    ), "All channels must have the same dimension, use the num_channels and max_L keywords to specify the number of channels and the maximum L"
+
     logging.info(f"Hidden irreps: {args.hidden_irreps}")
 
     model_config = dict(
@@ -319,6 +324,8 @@ def main() -> None:
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             atomic_inter_scale=args.std,
             atomic_inter_shift=0.0,
+            radial_MLP=ast.literal_eval(args.radial_MLP),
+            radial_type=args.radial_type,
         )
     elif args.model == "ScaleShiftMACE":
         model = modules.ScaleShiftMACE(
@@ -329,6 +336,8 @@ def main() -> None:
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             atomic_inter_scale=args.std,
             atomic_inter_shift=args.mean,
+            radial_MLP=ast.literal_eval(args.radial_MLP),
+            radial_type=args.radial_type,
         )
     elif args.model == "ScaleShiftBOTNet":
         model = modules.ScaleShiftBOTNet(
@@ -434,18 +443,7 @@ def main() -> None:
 
     logger = tools.MetricsLogger(directory=args.results_dir, tag=tag + "_train")
 
-    if args.scheduler == "ExponentialLR":
-        lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer=optimizer, gamma=args.lr_scheduler_gamma
-        )
-    elif args.scheduler == "ReduceLROnPlateau":
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer=optimizer,
-            factor=args.lr_factor,
-            patience=args.scheduler_patience,
-        )
-    else:
-        raise RuntimeError(f"Unknown scheduler: '{args.scheduler}'")
+    lr_scheduler = LRScheduler(optimizer, args)
 
     swa: Optional[tools.SWAContainer] = None
     swas = [False]
@@ -514,7 +512,7 @@ def main() -> None:
                 swa=True,
                 device=device,
             )
-        except:
+        except Exception as e:  # pylint: disable=W0703
             opt_start_epoch = checkpoint_handler.load_latest(
                 state=tools.CheckpointState(model, optimizer, lr_scheduler),
                 swa=False,
@@ -593,15 +591,11 @@ def main() -> None:
                 data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
                 for config in subset
             ]
-    elif not args.multi_processed_test:
+    else:
         test_files = get_files_with_suffix(args.test_dir, "_test.h5")
         for test_file in test_files:
             name = os.path.splitext(os.path.basename(test_file))[0]
             test_sets[name] = HDF5Dataset(test_file, r_max=args.r_max, z_table=z_table)
-    else:
-        test_folders = glob(args.test_dir + "/*")
-        for folder in test_folders:
-            test_sets[name] = dataset_from_sharded_hdf5(folder, r_max=args.r_max, z_table=z_table)
             
     for test_name, test_set in test_sets.items():
         test_sampler = None

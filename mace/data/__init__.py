@@ -30,4 +30,5 @@ __all__ = [
     "HDF5Dataset",
     "save_AtomicData_to_HDF5",
     "save_configurations_as_HDF5",
+    "dataset_from_sharded_hdf5",
 ]
