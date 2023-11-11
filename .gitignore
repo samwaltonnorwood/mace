@@ -18,3 +18,9 @@ build/
 .vscode/
 *.txt
 *.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# DS_Store
+.DS_Store
