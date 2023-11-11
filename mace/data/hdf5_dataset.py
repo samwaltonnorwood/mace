@@ -97,7 +97,7 @@ class HDF5IterDataset(IterableDataset):
 
 
 class HDF5Dataset(Dataset):
-    def __init__(self, file_path, r_max, z_table, **kwargs):
+    def __init__(self, file_path: str, r_max: torch.Tensor, z_table: AtomicNumberTable, **kwargs):
         super(HDF5Dataset, self).__init__()
         self.file_path = file_path
         self._file = None
@@ -128,7 +128,7 @@ class HDF5Dataset(Dataset):
     def __len__(self):
         return self.length
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         # compute the index of the batch
         batch_index = index // self.batch_size
         config_index = index % self.batch_size
@@ -157,7 +157,7 @@ class HDF5Dataset(Dataset):
         )
         return atomic_data
 
-def dataset_from_sharded_hdf5(files: List, z_table: AtomicNumberTable, r_max: float):
+def dataset_from_sharded_hdf5(files: List, z_table: AtomicNumberTable, r_max: torch.Tensor):
     files = glob(files+'/*')
     datasets = []
     for file in files:

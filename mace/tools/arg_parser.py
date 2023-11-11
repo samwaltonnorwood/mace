@@ -91,9 +91,10 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         ],
     )
     parser.add_argument(
-        "--r_max", help="distance cutoff (in Ang)", 
-        type=float, 
-        default=5.0
+        "--r_max", 
+        help="distance cutoff (in Ang). Float or list of values for each layer", 
+        type=str, 
+        default="5.0",
     )
     parser.add_argument(
         "--radial_type",
@@ -139,7 +140,11 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "--max_ell", help=r"highest \ell of spherical harmonics", type=int, default=3
     )
     parser.add_argument(
-        "--correlation", help="correlation order at each layer", type=int, default=3
+        "--correlation",
+        help="correlation order at each layer. "
+        "Can be list of values for each layer or single int ",
+        type=str,
+        default=3,
     )
     parser.add_argument(
         "--num_interactions", help="number of interactions", type=int, default=2
@@ -216,7 +221,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
 
     # Dataset
     parser.add_argument(
-        "--train_file", help="Training set file, format is .xyz or .h5", type=str, 
+        "--train_file", help="Training set file, format is .xyz or .h5", type=str,
         required=True,
     )
     parser.add_argument(
@@ -261,7 +266,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pin_memory",
         help="Pin memory for data loading",
-        default=True, 
+        default=True,
         type=bool,
     )
     parser.add_argument(
@@ -574,8 +579,8 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--num_process",
-        help="The user defined number of processes to use, as well as the number of files created.", 
-        type=int, 
+        help="The user defined number of processes to use, as well as the number of files created.",
+        type=int,
         default=int(os.cpu_count()/4)
     )
     parser.add_argument(
@@ -597,11 +602,6 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         help="Prefix for h5 files when saving",
         type=str,
         default="",
-    )
-    parser.add_argument(
-        "--r_max", help="distance cutoff (in Ang)", 
-        type=float, 
-        default=5.0
     )
     parser.add_argument(
         "--config_type_weights",
@@ -653,15 +653,21 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
+        "--r_max", 
+        help="distance cutoff (in Ang). Float or list of values for each layer", 
+        type=str, 
+        default="5.0",
+    )
+    parser.add_argument(
         "--compute_statistics",
         help="Compute statistics for the dataset",
         action="store_true",
         default=False,
     )
     parser.add_argument(
-        "--batch_size", 
-        help="batch size to compute average number of neighbours", 
-        type=int, 
+        "--batch_size",
+        help="batch size to compute average number of neighbours",
+        type=int,
         default=16,
     )
 

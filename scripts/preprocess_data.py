@@ -8,14 +8,12 @@ import random
 import tqdm
 from glob import glob
 import h5py
-from ase.io import read
 import torch
 import multiprocessing
 import os
 from typing import List, Tuple
 from functools import partial
 
-from mace.tools import to_numpy
 from mace import tools, data
 from mace.data.utils import save_configurations_as_HDF5
 from mace.tools.scripts_utils import get_dataset_from_xyz, get_atomic_energies
@@ -24,7 +22,13 @@ from mace.tools import torch_geometric
 from mace.modules import compute_statistics
 
 
-def compute_stats_target(file: str, z_table: AtomicNumberTable, r_max: float, atomic_energies: Tuple, batch_size: int):
+def compute_stats(
+    file: str, 
+    z_table: AtomicNumberTable, 
+    r_max: torch.Tensor, 
+    atomic_energies: Tuple, 
+    batch_size: int
+) -> List:
     train_dataset = data.HDF5Dataset(file, z_table=z_table, r_max=r_max)
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=train_dataset, 
@@ -37,19 +41,25 @@ def compute_stats_target(file: str, z_table: AtomicNumberTable, r_max: float, at
     return output
 
 
-def pool_compute_stats(inputs: List): 
-    path_to_files, z_table, r_max, atomic_energies, batch_size, num_process = inputs
+def compute_stats_parallel(
+    prefix: str, 
+    z_table: AtomicNumberTable, 
+    r_max: torch.Tensor, 
+    atomic_energies: Tuple, 
+    batch_size: int,
+    num_process: int,
+) -> np.ndarray: 
     pool = multiprocessing.Pool(processes=num_process)
-    re = [
+    pool_result = [
         pool.apply_async(
-            compute_stats_target, 
-            args=(file, z_table, r_max, atomic_energies, batch_size,)
+            compute_stats, 
+            args=(file, z_table, r_max, atomic_energies, batch_size)
         ) 
-        for file in glob(path_to_files+'/*')
+        for file in glob(prefix+'/*')
     ]
     pool.close()
     pool.join()
-    results = [r.get() for r in tqdm.tqdm(re)]
+    results = [r.get() for r in tqdm.tqdm(pool_result)]
     return np.average(results, axis=0)
 
 
@@ -122,7 +132,7 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler()],
     )
-    
+
     try:
         config_type_weights = ast.literal_eval(args.config_type_weights)
         assert isinstance(config_type_weights, dict)
@@ -131,6 +141,11 @@ def main():
             f"Config type weights not specified correctly ({e}), using Default"
         )
         config_type_weights = {"Default": 1.0}
+
+    r_max = ast.literal_eval(args.r_max)
+    if isinstance(r_max, (list, tuple, np.ndarray)):
+        r_max = max(r_max)
+    r_max = torch.tensor(r_max, dtype=torch.get_default_dtype())
     
     folders = ['train', 'val', 'test']
     for sub_dir in folders:
@@ -195,18 +210,19 @@ def main():
         logging.info("Computing statistics")
         if len(atomic_energies_dict) == 0:
             atomic_energies_dict = get_atomic_energies(args.E0s, collections.train, z_table)
-        atomic_energies: np.ndarray = np.array(
-            [atomic_energies_dict[z] for z in z_table.zs]
+        atomic_energies = np.array([atomic_energies_dict[z] for z in z_table.zs])
+        (
+            avg_num_neighbors, 
+            mean, 
+            std,
+        ) = compute_stats_parallel(
+            prefix=args.h5_prefix+'train',
+            z_table=z_table,
+            r_max=r_max,
+            atomic_energies=atomic_energies,
+            batch_size=args.batch_size,
+            num_process=args.num_process,
         )
-        stat_inputs = [
-            args.h5_prefix+'train', 
-            z_table, 
-            args.r_max, 
-            atomic_energies, 
-            args.batch_size, 
-            args.num_process,
-        ]
-        avg_num_neighbors, mean, std = pool_compute_stats(stat_inputs)
         logging.info(f"Atomic energies: {atomic_energies.tolist()}")
         logging.info(f"Average number of neighbors: {avg_num_neighbors}")
         logging.info(f"Mean: {mean}")
@@ -218,7 +234,7 @@ def main():
             "mean": mean,
             "std": std,
             "atomic_numbers": str(z_table.zs),
-            "r_max": args.r_max,
+            "r_max": torch.max(r_max).item(),
         }
         with open(args.h5_prefix + "statistics.json", "w") as f:
             json.dump(statistics, f)
