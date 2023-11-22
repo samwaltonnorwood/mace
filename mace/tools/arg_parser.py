@@ -670,7 +670,6 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         type=int,
         default=16,
     )
-
     parser.add_argument(
         "--scaling",
         help="type of scaling to the output",
@@ -688,8 +687,8 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--shuffle",
         help="Shuffle the training dataset",
-        type=bool,
-        default=True,
+        action="store_true",
+        default=False,
     )
     parser.add_argument(
         "--seed",

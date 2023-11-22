@@ -66,12 +66,12 @@ def compute_stats_parallel(
 def write_hdf5(process, prefix, split_data, drop_last):
     with h5py.File(prefix + str(process) + ".h5", "w") as f:
         f.attrs["drop_last"] = drop_last
-        save_configurations_as_HDF5(split_data[process], process, f)
+        save_configurations_as_HDF5(split_data[process], 0, f)
 
 
 def write_hdf5_parallel(data, num_process, prefix, shuffle=False):
     if shuffle:
-        data = random.shuffle(data)
+        random.shuffle(data)
     drop_last = (len(data) % 2 == 1)
     split_data = np.array_split(data, num_process)
     processes = []
@@ -132,7 +132,7 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler()],
     )
-
+    
     try:
         config_type_weights = ast.literal_eval(args.config_type_weights)
         assert isinstance(config_type_weights, dict)
@@ -145,9 +145,11 @@ def main():
     r_max = ast.literal_eval(args.r_max)
     if isinstance(r_max, (list, tuple, np.ndarray)):
         r_max = max(r_max)
-    r_max = torch.tensor(r_max, dtype=torch.get_default_dtype())
+    r_max = torch.tensor([r_max], dtype=torch.get_default_dtype())
     
-    folders = ['train', 'val', 'test']
+    folders = ['train', 'valid']
+    if args.test_file is not None:
+        folders += ['test']
     for sub_dir in folders:
         if not os.path.exists(args.h5_prefix+sub_dir):
             os.makedirs(args.h5_prefix+sub_dir)
@@ -193,7 +195,7 @@ def main():
     logging.info("Preparing validation set")
     write_hdf5_parallel(
         data=collections.valid, 
-        prefix=args.h5_prefix + "val/val_",
+        prefix=args.h5_prefix + "valid/valid_",
         num_process=args.num_process,
         shuffle=args.shuffle,
     )
@@ -238,6 +240,8 @@ def main():
         }
         with open(args.h5_prefix + "statistics.json", "w") as f:
             json.dump(statistics, f)
+    
+    logging.info("Done")
 
 
 if __name__ == "__main__":

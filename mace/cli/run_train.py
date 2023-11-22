@@ -139,9 +139,13 @@ def main() -> None:
     elif args.train_file.endswith(".h5"):
         atomic_energies_dict = None
     else:
-        raise RuntimeError(
-            f"train_file must be either .xyz or .h5, got {args.train_file}"
-        )
+        atomic_energies_dict = None
+        assert any(
+            Path(root).joinpath(f).suffix == '.h5' 
+            for root, _, files 
+            in os.walk(args.train_file) 
+            for f in files
+        ), f"No .h5 files found in the directory at {args.train_file} or its subdirectories"
     
     # Atomic number table
     # yapf: disable
@@ -213,7 +217,7 @@ def main() -> None:
         valid_set = HDF5Dataset(
             args.valid_file, r_max=r_max, z_table=z_table
         )
-    else: # This case would be for when the file path is to a directory of multiple .h5 files
+    else: # This would be the case when the file path is to a directory of multiple .h5 files
         train_set = dataset_from_sharded_hdf5(
             args.train_file, r_max=r_max, z_table=z_table
         )
