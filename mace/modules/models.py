@@ -4,7 +4,7 @@
 # This program is distributed under the MIT License (see MIT.md)
 ###########################################################################################
 
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 import numpy as np
 import torch
@@ -54,7 +54,7 @@ class MACE(torch.nn.Module):
         atomic_energies: np.ndarray,
         avg_num_neighbors: float,
         atomic_numbers: List[int],
-        correlations: List[int],
+        correlation: Union[int, List[int]],
         gate: Optional[Callable],
         radial_MLP: Optional[List[int]] = None,
         radial_type: Optional[str] = "bessel",
@@ -73,6 +73,8 @@ class MACE(torch.nn.Module):
         # Radial embedding, interactions and readouts
         self.radial_embeddings = torch.nn.ModuleList()
 
+        if isinstance(correlation, int):
+            correlation = [correlation] * num_interactions
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
         node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
@@ -120,7 +122,7 @@ class MACE(torch.nn.Module):
         prod = EquivariantProductBasisBlock(
             node_feats_irreps=node_feats_irreps_out,
             target_irreps=hidden_irreps,
-            correlation=correlations[0],
+            correlation=correlation[0],
             num_elements=num_elements,
             use_sc=use_sc_first,
         )
@@ -159,7 +161,7 @@ class MACE(torch.nn.Module):
             prod = EquivariantProductBasisBlock(
                 node_feats_irreps=interaction_irreps,
                 target_irreps=hidden_irreps_out,
-                correlation=correlations[i + 1],
+                correlation=correlation[i + 1],
                 num_elements=num_elements,
                 use_sc=True,
             )

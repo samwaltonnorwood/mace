@@ -545,7 +545,7 @@ def main() -> None:
                 swa=True,
                 device=device,
             )
-        except Exception as e:  # pylint: disable=W0703
+        except Exception:  # pylint: disable=W0703
             opt_start_epoch = checkpoint_handler.load_latest(
                 state=tools.CheckpointState(model, optimizer, lr_scheduler),
                 swa=False,

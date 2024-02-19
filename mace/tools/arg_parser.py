@@ -5,8 +5,9 @@
 ###########################################################################################
 
 import argparse
-from typing import Optional
+import ast
 import os
+from typing import List, Optional, Union
 
 
 def build_default_arg_parser() -> argparse.ArgumentParser:
@@ -141,9 +142,8 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--correlation",
-        help="correlation order at each layer. "
-        "Can be list of values for each layer or single int ",
-        type=str,
+        help="correlation order at each layer",
+        type=listint_or_int,
         default=3,
     )
     parser.add_argument(
@@ -708,3 +708,9 @@ def check_float_or_none(value: str) -> Optional[float]:
                 f"{value} is an invalid value (float or None)"
             ) from None
         return None
+
+
+def listint_or_int(value: Union[str, int]) -> Union[List[int], int]:
+    if isinstance(value, str):
+        return ast.literal_eval(value)
+    return int(value)
