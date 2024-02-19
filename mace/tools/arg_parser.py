@@ -93,9 +93,9 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--r_max", 
-        help="distance cutoff (in Ang). Float or list of values for each layer", 
-        type=str, 
-        default="5.0",
+        help="distance cutoff (in Ang)", 
+        type=list_or_value, 
+        default=5.0,
     )
     parser.add_argument(
         "--radial_type",
@@ -143,7 +143,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--correlation",
         help="correlation order at each layer",
-        type=listint_or_int,
+        type=list_or_value,
         default=3,
     )
     parser.add_argument(
@@ -710,7 +710,7 @@ def check_float_or_none(value: str) -> Optional[float]:
         return None
 
 
-def listint_or_int(value: Union[str, int]) -> Union[List[int], int]:
+def list_or_value(value: Union[str, float, int]) -> Union[List[int], int, List[float], float]:
     if isinstance(value, str):
         return ast.literal_eval(value)
-    return int(value)
+    return value

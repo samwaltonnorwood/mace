@@ -41,7 +41,7 @@ from .utils import (
 class MACE(torch.nn.Module):
     def __init__(
         self,
-        r_max: List[float],
+        r_max: Union[float,List[float]],
         num_bessel: int,
         num_polynomial_cutoff: int,
         max_ell: int,
@@ -73,6 +73,8 @@ class MACE(torch.nn.Module):
         # Radial embedding, interactions and readouts
         self.radial_embeddings = torch.nn.ModuleList()
 
+        if isinstance(r_max, float):
+            r_max = [r_max] * num_interactions
         if isinstance(correlation, int):
             correlation = [correlation] * num_interactions
         # Embedding

@@ -72,8 +72,8 @@ def main() -> None:
     device = tools.init_device(args.device)
 
     # Support separate cutoff and correlation settings for each layer:
-    r_max = ast.literal_eval(args.r_max)
-    correlation = ast.literal_eval(args.correlation)
+    r_max = args.r_max
+    correlation = args.correlation
     if isinstance(r_max, (list, tuple, np.ndarray)):
         r_max = torch.tensor(r_max, dtype=torch.get_default_dtype())
     else:
@@ -349,7 +349,7 @@ def main() -> None:
     if args.model == "MACE":
         model = modules.ScaleShiftMACE(
             **model_config,
-            correlations=correlation.tolist(),
+            correlation=correlation.tolist(),
             gate=modules.gate_dict[args.gate],
             interaction_cls_first=modules.interaction_classes[
                 "RealAgnosticInteractionBlock"
@@ -363,7 +363,7 @@ def main() -> None:
     elif args.model == "ScaleShiftMACE":
         model = modules.ScaleShiftMACE(
             **model_config,
-            correlations=correlation.tolist(),
+            correlation=correlation.tolist(),
             gate=modules.gate_dict[args.gate],
             interaction_cls_first=modules.interaction_classes[args.interaction_first],
             MLP_irreps=o3.Irreps(args.MLP_irreps),
